@@ -2,17 +2,20 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class StateBase : MonoBehaviour
+public abstract class StateBase<TOwner> where TOwner : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    protected TOwner owner;
+
+    public StateBase(TOwner owner)
     {
-        
+        this.owner = owner;
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    public abstract void Setup();
+
+    public abstract void Enter();
+
+    public abstract void Update();
+
+    public abstract void Exit();
 }
