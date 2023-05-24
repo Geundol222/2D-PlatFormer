@@ -3,9 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using BeeState0524;
 using System.Buffers;
+using UnityEngine.Assertions.Must;
 
 public class Bee0524 : MonoBehaviour
 {
+    StateMachine0524<State, Bee0524> stateMachine;
+
+    [SerializeField] public FireBall fireBall;
+
     public Transform[] patrolPoints;
     public int patrolIndex = 0;
     public Vector2 dir;
@@ -17,31 +22,30 @@ public class Bee0524 : MonoBehaviour
     public Transform player;
     public Vector3 returnPosition;
 
-    public StateBase0524<Bee0524>[] states;
     public State curState;
 
     private void Awake()
     {
         render = GetComponent<SpriteRenderer>();
-        states = new StateBase0524<Bee0524>[(int)State.Size];
-        states[(int)State.Idle] = new IdleState(this);
-        states[(int)State.Trace] = new TraceState(this);
-        states[(int)State.Return] = new ReturnState(this);
-        states[(int)State.Attack] = new AttackState(this);
-        states[(int)State.Patrol] = new PatrolState(this);
+
+        stateMachine = new StateMachine0524<State, Bee0524>(this);
+        stateMachine.AddState(State.Idle, new IdleState(this, stateMachine));
+        stateMachine.AddState(State.Runaway, new RunawayState(this, stateMachine));
+        stateMachine.AddState(State.Return, new ReturnState(this, stateMachine));
+        stateMachine.AddState(State.Attack, new AttackState(this, stateMachine));
+        stateMachine.AddState(State.Patrol, new PatrolState(this, stateMachine));
     }
 
     private void Start()
     {
-        curState = State.Idle;
         player = GameObject.FindGameObjectWithTag("Player").transform;
         returnPosition = transform.position;
-        states[(int)curState].Setup();
+        stateMachine.Setup(State.Idle);
     }
 
     private void Update()
     {
-        states[(int)curState].Update();
+        stateMachine.Update();
     }
 
     private void FixedUpdate()
@@ -57,35 +61,74 @@ public class Bee0524 : MonoBehaviour
             render.flipX = false;
     }
 
-    public void ChangeState(State state)
+    private void OnDrawGizmos()
     {
-        states[(int)curState].Exit();
-        curState = state;
-        states[(int)curState].Setup();
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectRange);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
     }
-
-
 }
 
 namespace BeeState0524
 {
-    public enum State { Idle, Trace, Return, Attack, Patrol, Size }
+    public enum State { Idle, Runaway, Return, Attack, Patrol, Size }
 
-    public class IdleState : StateBase0524<Bee0524>
+    public abstract class BeeState0524 : StateBase0524<State, Bee0524>
     {
-        float detectRange;
-        Transform player;
+        protected GameObject gameObject => owner.gameObject;
+        protected FireBall fireBall => owner.fireBall;
+        protected Transform transform => owner.transform;
+        protected float detectRange => owner.detectRange;
+        protected float attackRange => owner.attackRange;
+        protected float moveSpeed => owner.moveSpeed;
+        protected Transform player => owner.player;
+        protected Vector3 returnPosition => owner.returnPosition;
+        protected Vector2 dir
+        {
+            get
+            {
+                return owner.dir;
+            }
+            set
+            {
+                owner.dir = value;
+            }
+        }
+        protected Transform[] patrolPoints
+        {
+            get
+            {
+                return owner.patrolPoints;
+            }
+            set
+            {
+                owner.patrolPoints = value;
+            }
+        }
+        protected int patrolIndex
+        {
+            get
+            {
+                return owner.patrolIndex;
+            }
+            set
+            {
+                owner.patrolIndex = value;
+            }
+        }
 
+        public BeeState0524(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
+    }
+
+    public class IdleState : BeeState0524
+    {
         float idleTime;
 
-        public IdleState(Bee0524 owner) : base(owner) { }
+        public IdleState(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
 
         public override void Setup()
         {
-            player = owner.player;
-            detectRange = owner.detectRange;
-
-            Enter();
         }
 
         public override void Enter()
@@ -98,12 +141,13 @@ namespace BeeState0524
             idleTime += Time.deltaTime;
             if (idleTime > 2)
             {
-                owner.ChangeState(State.Patrol);
+                stateMachine.ChangeState(State.Patrol);
             }
 
-            if (Vector2.Distance(player.position, owner.transform.position) < detectRange)
+            if (Vector2.Distance(player.position, transform.position) < attackRange
+                && Vector2.Distance(player.position, transform.position) > detectRange)
             {
-                owner.ChangeState(State.Trace);
+                stateMachine.ChangeState(State.Attack);
             }
         }
 
@@ -113,13 +157,13 @@ namespace BeeState0524
         }
     }
 
-    public class TraceState : StateBase0524<Bee0524>
+    public class RunawayState : BeeState0524
     {
-        public TraceState(Bee0524 owner) : base(owner) { }
+        public RunawayState(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
 
         public override void Setup()
         {
-
+            
         }
 
         public override void Enter()
@@ -129,7 +173,18 @@ namespace BeeState0524
 
         public override void Update()
         {
+            dir = (player.position - transform.position).normalized;
+            transform.Translate(-dir * moveSpeed * Time.deltaTime);
 
+            if (Vector2.Distance(player.position, transform.position) > detectRange)
+            {
+                stateMachine.ChangeState(State.Return);
+            }
+            else if (Vector2.Distance(player.position, transform.position) < attackRange
+                && Vector2.Distance(player.position, transform.position) > detectRange)
+            {
+                stateMachine.ChangeState(State.Attack);
+            }
         }
 
         public override void Exit()
@@ -138,9 +193,9 @@ namespace BeeState0524
         }
     }
 
-    public class ReturnState : StateBase0524<Bee0524>
+    public class ReturnState : BeeState0524
     {
-        public ReturnState(Bee0524 owner) : base(owner) { }
+        public ReturnState(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
 
         public override void Setup()
         {
@@ -154,7 +209,18 @@ namespace BeeState0524
 
         public override void Update()
         {
+            dir = (returnPosition - transform.position).normalized;
+            transform.Translate(dir * moveSpeed * Time.deltaTime);
 
+            if (Vector2.Distance(returnPosition, transform.position) < 0.02f)
+            {
+                stateMachine.ChangeState(State.Idle);
+            }
+            else if (Vector2.Distance(player.position, transform.position) < attackRange
+                && Vector2.Distance(player.position, transform.position) > detectRange)
+            {
+                stateMachine.ChangeState(State.Attack);
+            }
         }
 
         public override void Exit()
@@ -163,9 +229,11 @@ namespace BeeState0524
         }
     }
 
-    public class AttackState : StateBase0524<Bee0524>
+    public class AttackState : BeeState0524
     {
-        public AttackState(Bee0524 owner) : base(owner) { }
+        float lastAttackTime;
+
+        public AttackState(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
 
         public override void Setup()
         {
@@ -174,12 +242,29 @@ namespace BeeState0524
 
         public override void Enter()
         {
-
+            lastAttackTime = 0;
         }
 
         public override void Update()
         {
+            dir = (player.position - transform.position).normalized;
+            transform.Translate(dir * moveSpeed * Time.deltaTime);
 
+            if (lastAttackTime > 1.5f)
+            {
+                FireBall.Instantiate(fireBall, transform.position, transform.rotation);
+                lastAttackTime = 0;
+            }
+            lastAttackTime += Time.deltaTime;
+
+            if (Vector2.Distance(player.position, transform.position) > attackRange)
+            {
+                stateMachine.ChangeState(State.Return);
+            }
+            else if (Vector2.Distance(player.position, transform.position) < detectRange)
+            {
+                stateMachine.ChangeState(State.Runaway);
+            }
         }
 
         public override void Exit()
@@ -188,9 +273,9 @@ namespace BeeState0524
         }
     }
 
-    public class PatrolState : StateBase0524<Bee0524>
-    {
-        public PatrolState(Bee0524 owner) : base(owner) { }
+    public class PatrolState : BeeState0524
+{
+        public PatrolState(Bee0524 owner, StateMachine0524<State, Bee0524> stateMachine) : base(owner, stateMachine) { }
 
         public override void Setup()
         {
@@ -204,7 +289,18 @@ namespace BeeState0524
 
         public override void Update()
         {
+            dir = (patrolPoints[patrolIndex].position - transform.position).normalized;
+            transform.Translate(dir * moveSpeed * Time.deltaTime);
 
+            if (Vector2.Distance(patrolPoints[patrolIndex].position, transform.position) < 0.02f)
+            {
+                stateMachine.ChangeState(State.Idle);
+            }
+            else if (Vector2.Distance(player.position, transform.position) < attackRange
+                && Vector2.Distance(player.position, transform.position) > detectRange)
+            {
+                stateMachine.ChangeState(State.Attack);
+            }
         }
 
         public override void Exit()
