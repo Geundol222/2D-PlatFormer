@@ -3034,10 +3034,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   detectRange: 4
   attackRange: 1
-  moveSpeed: 1
+  moveSpeed: 1.5
   patrolPoints:
   - {fileID: 1210338036}
   - {fileID: 624146560}
+  player: {fileID: 0}
+  returnPosition: {x: 0, y: 0, z: 0}
+  patrolIndex: 0
+  dir: {x: 0, y: 0}
 --- !u!212 &1701648086
 SpriteRenderer:
   m_ObjectHideFlags: 0
