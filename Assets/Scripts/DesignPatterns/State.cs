@@ -30,94 +30,97 @@ using UnityEngine;
 	3. 간단한 동작의 객체에 상태패턴을 적용하는 경우, 오히려 관리할 상태 코드량이 증가하게 됨
 */
 
-public class State : MonoBehaviour
+namespace DesignPattern
 {
-    public class Mobile
+    public class State : MonoBehaviour
     {
-        public enum State { Off, Normal, Charge, FullCharged }
-
-        private State state = State.Normal;
-        private bool charging = false;
-        private float battery = 50.0f;
-
-        private void Update()
+        public class Mobile
         {
-            switch (state)
+            public enum State { Off, Normal, Charge, FullCharged }
+
+            private State state = State.Normal;
+            private bool charging = false;
+            private float battery = 50.0f;
+
+            private void Update()
             {
-                case State.Off:
-                    OffUpdate();
-                    break;
-                case State.Normal:
-                    NormalUpdate();
-                    break;
-                case State.Charge:
-                    ChargeUpdate();
-                    break;
-                case State.FullCharged:
-                    FullChargedUpdate();
-                    break;
+                switch (state)
+                {
+                    case State.Off:
+                        OffUpdate();
+                        break;
+                    case State.Normal:
+                        NormalUpdate();
+                        break;
+                    case State.Charge:
+                        ChargeUpdate();
+                        break;
+                    case State.FullCharged:
+                        FullChargedUpdate();
+                        break;
+                }
             }
-        }
 
-        private void OffUpdate()
-        {
-            // Off work
-            // Do nothing
-
-            if (charging)
+            private void OffUpdate()
             {
-                state = State.Charge;
+                // Off work
+                // Do nothing
+
+                if (charging)
+                {
+                    state = State.Charge;
+                }
             }
-        }
 
-        private void NormalUpdate()
-        {
-            // Normal work
-            battery -= 1.5f * Time.deltaTime;
-
-            if (charging)
+            private void NormalUpdate()
             {
-                state = State.Charge;
+                // Normal work
+                battery -= 1.5f * Time.deltaTime;
+
+                if (charging)
+                {
+                    state = State.Charge;
+                }
+                else if (battery <= 0)
+                {
+                    state = State.Off;
+                }
             }
-            else if (battery <= 0)
+
+            private void ChargeUpdate()
             {
-                state = State.Off;
+                // Charge work
+                battery += 25f * Time.deltaTime;
+
+                if (!charging)
+                {
+                    state = State.Normal;
+                }
+                else if (battery >= 100)
+                {
+                    state = State.FullCharged;
+                }
             }
-        }
 
-        private void ChargeUpdate()
-        {
-            // Charge work
-            battery += 25f * Time.deltaTime;
-
-            if (!charging)
+            private void FullChargedUpdate()
             {
-                state = State.Normal;
+                // FullCharged work
+
+                if (!charging)
+                {
+                    state = State.Normal;
+                }
             }
-            else if (battery >= 100)
+
+            public void ConnectCharger()
             {
-                state = State.FullCharged;
+                charging = true;
             }
-        }
 
-        private void FullChargedUpdate()
-        {
-            // FullCharged work
-
-            if (!charging)
+            public void DisConnectCharger()
             {
-                state = State.Normal;
+                charging = false;
             }
-        }
-
-        public void ConnectCharger()
-        {
-            charging = true;
-        }
-
-        public void DisConnectCharger()
-        {
-            charging = false;
         }
     }
 }
