@@ -44,6 +44,7 @@ public class Mouse : MonoBehaviour
     private bool IsGroundExist()
     {
         Debug.DrawRay(groundCheckPoint.position, Vector2.down, Color.red);
+
         return Physics2D.Raycast(groundCheckPoint.position, Vector2.down, 1f, groundMask);
     }
 }
